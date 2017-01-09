@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html style="height: 100%">
+<head>
+</head>
+<body  style="height: 100%">
+
+    <div id="container1" style="width:100%;height:100%; position: relative;"></div>
+    <script language="javascript" type="text/javascript" src="jquery.js"></script> 
+    <script src="d3.min.js"></script>
+    <script src="topojson.js"></script>
+    <script src="datamaps.world.js"></script>
+
+    <script>
+
+
+
+
+        var countries_iso=[];       
+        var minValue =0;
+        var maxValue =0;
+        var alpha2 = [];
+        var alpha3=[];
+        var countries_array =[];
+        var bitcoin_array = [];
+        var myFiles =[];
+        
+
+        function getISO() {
+         $.getJSON("http://localhost:8000/allcountries.json", function(json) {
+
+             var count = Object.keys(json).length;
+             for(i=0;i<count;i++) {
+                alpha2[i] = json[i].alphatwo;
+                alpha3[i] = json[i].alphathree;
+            }
+
+        })}
+
+         getISO();
+
+         function loadFile(filePath, done) {
+            for(i=0;i<filePath.length;i++) {
+                    var xhr = new XMLHttpRequest();
+                    xhr.onload = function () { return done(this.responseText) }
+                    xhr.open("GET", filePath[i], true);
+                    xhr.send(null);
+                }
+         }
+
+
+         
+         function storeData(myFiles,countries_array,callback) {
+            var counter =0;
+            var fileNum=0;
+            loadFile(myFiles, function (responseText) {
+                fileNum = fileNum+1;
+                loopData(fileNum,responseText,countries_array,function(){
+                    counter = counter+1;
+                    if(counter==myFiles.length)
+                    callback();
+                })
+            });
+         }
+
+         function getData(numFiles,filesArray,callback) {
+            for(i=0;i<numFiles|| function(){callback();return false;}();i++) {
+                filesArray.push("http://localhost:8000/data/File"+(i+1)+".json");
+            }
+         }
+
+         function loopData(fileNum,responseText,countries_array,callback) {
+                var jsonData = JSON.parse(responseText);
+                var count =Object.keys(jsonData).length
+                // console.log(Object.keys(jsonData[0]));
+                for(m=0;m<count;m++){
+                    var country = "";
+                    var bitcoin_value =0;
+                    // Handle different type of json data. This is weird> I don't know why!!!
+                    if (typeof(jsonData[m].transactions) == "undefined") {
+                    	// console.log("fileNum:",fileNum,":row:",m,":count:",count);
+                    	 // Means there is no data
+                    	 if(typeof(jsonData[m].country) == "undefined")
+                    	 	continue;
+
+                    	 country = jsonData[m].country;
+                    	 if(typeof(jsonData[m].sources[0]) == "undefined") {
+                    	 	console.log("fileNum:",fileNum,":row:",m,":count:",count);
+                    	 	continue;
+                    	 }
+
+                    	 bitcoin_value  = jsonData[m].sources[0].value;
+                    }else   
+                    // Check if the country is undefined! it means there is no data
+                    if (typeof(jsonData[m].transactions[0].country) == "undefined")
+                         continue;
+                     else
+                     {
+						 country = jsonData[m].transactions[0].country;
+						 bitcoin_value =jsonData[m].srcaddress.value;
+                     }
+
+                     var indx = countries_array.indexOf(country)
+                     // New Data to be added in the array
+                     if(indx == -1) {
+                        var ind = alpha2.indexOf(country);
+                        // Maybe I do not need it 
+                        if(country == "unknown") {
+                            countries_array.push(country);
+                            countries_iso.push(country);
+                        }else {
+                            countries_array.push(country);
+                            countries_iso.push(alpha3[ind]);
+                        }
+                        bitcoin_array.push(bitcoin_value/100000000);
+                     } else {
+                         var bitcoin_num = bitcoin_value/100000000;
+                         bitcoin_array[indx]+=bitcoin_num;
+                     }
+                    
+                }
+                 callback();
+         }
+
+          function calculateMinMax(length,callback) {
+                minValue = bitcoin_array[0];
+                maxValue = bitcoin_array[0];
+                // console.log("Done calculateMinMax");
+                for(i=0;i<length|| function(){callback();return false;}();i++) {
+                    if(bitcoin_array[i]<=minValue)
+                        minValue=bitcoin_array[i];
+                    if(bitcoin_array[i] >=maxValue)
+                        maxValue=bitcoin_array[i];
+                }
+            }
+
+
+         function paletteScale(value) {
+            minColor="#EFEDF5";
+            maxColor="#756BB1";
+        }
+
+        function drawMap(length) {
+
+        var paletteScale = d3.scale.linear()
+        .domain([minValue,maxValue])
+            .range(["#EFEDF5","#756BB1"]); // blue color
+
+
+            var dataset = {};
+
+            for(i=0;i<length;i++) {
+                var value = bitcoin_array[i];
+                dataset[countries_iso[i]] = {bitcoinvalue: value, fillColor: paletteScale(value)}
+            }
+
+    // render map
+    var map = new Datamap({
+        element: document.getElementById('container1'),
+        projection: 'mercator', // big world map
+        // countries don't listed in dataset will be painted with this color
+        fills: { defaultFill: '#F5F5F5' },
+        data: dataset,
+        geographyConfig: {
+            borderColor: '#DEDEDE',
+            highlightBorderWidth: 2,
+            // don't change color on mouse hover
+            highlightFillColor: function(geo) {
+                return geo['fillColor'] || '#F5F5F5';
+            },
+            // only change border
+            highlightBorderColor: '#B7B7B7',
+            // show desired information in tooltip
+            popupTemplate: function(geo, data) {
+                // don't show tooltip if country don't present in dataset
+                if (!data) { return ; }
+                // tooltip content
+                return ['<div class="hoverinfo">',
+                '<strong>', geo.properties.name, '</strong>',
+               '<br>Total Transactions in Bitcoin: <strong>', (data.bitcoinvalue).toFixed(2), '</strong>',
+                '<br>Total Transactions in USD: <strong>', (data.bitcoinvalue * 906.86).toFixed(2), '</strong>',
+                '</div>'].join('');
+            }
+        }
+    });
+    // For zooming
+    var b = d3.behavior.zoom().translate(map.projection.translate()).scale(map.projection.scale()).on("zoom", function() {
+        map.projection.translate(d3.event.translate).scale(d3.event.scale);
+        map.svg.select("g").selectAll("path").attr("d", map.path.projection(map.projection));
+        $(".popup-box").remove()
+    });
+    map.svg.call(b);
+}
+
+
+getData(5184,myFiles, function(){
+
+    storeData(myFiles,countries_array,function(){
+        var length =countries_array.length;
+        calculateMinMax(length,function(){
+             drawMap(length);
+        })
+       
+    })
+})
+
+
+
+
+</script>
+
+</body>
+</html>
