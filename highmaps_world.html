@@ -3,8 +3,60 @@
 <head>
 </head>
 <body  style="height: 100%">
+<style>
+    .trowdefault{
+        clear:both;
+        margin-left:5px;
+        width:100%;
+        height:15px;
+        display:inline-block;
+        background-color:#4A4A70;
+        color:#FFFFFF;
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 0.70em;
+        position:relative;
+        opacity: 0.9;
+    }
+    .tcountry{
+        float:right;
+        margin-right:25px;
+        display:inline-block;   
+        text-align:left;
+    }
+    .tvol{
 
-    <div id="container1" style="width:100%;height:100%; position: relative;"></div>
+        float:left
+        text-align:left;
+        margin-left:30px;
+        display:inline-block;
+    }
+</style>
+    <div id="container1" style="width:100%;height:100%; position: relative;">
+        <div id="transactions" style="position: absolute;left: 1%;top:60%;width:22%;height:23%;opacity:0.9;min-width: 340px;">
+            <div id="transactionscontainer" style="border: 1px solid #4A4A70;position: relative;height:100%;overflow:hidden;overflow-y: auto;opacity:0.9;">
+                <!-- Here we provide the transactions in the table -->
+                <div class="transactrows">
+                    <div class="trowdefault"><<div id="tvol_1" class="tvol"></div><div id ="tcountry_1" class="tcountry"></div></div>
+                    <div class="trowdefault"><<div id="tvol_2" class="tvol"></div><div id ="tcountry_2" class="tcountry"></div></div>
+                    <div class="trowdefault"><<div id="tvol_3" class="tvol"></div><div id ="tcountry_3" class="tcountry"></div></div>
+                    <div class="trowdefault"><<div id="tvol_4" class="tvol"></div><div id ="tcountry_4" class="tcountry"></div></div>
+                    <div class="trowdefault"><<div id="tvol_5" class="tvol"></div><div id ="tcountry_5" class="tcountry"></div></div>
+                    <div class="trowdefault"><<div id="tvol_6" class="tvol"></div><div id ="tcountry_6" class="tcountry"></div></div>
+                    <div class="trowdefault"><<div id="tvol_7" class="tvol"></div><div id ="tcountry_7" class="tcountry"></div></div>
+                    <div class="trowdefault"><<div id="tvol_8" class="tvol"></div><div id ="tcountry_8" class="tcountry"></div></div>
+                    <div class="trowdefault"><<div id="tvol_9" class="tvol"></div><div id ="tcountry_9" class="tcountry"></div></div>
+                    <div class="trowdefault"><<div id="tvol_10" class="tvol"></div><div id ="tcountry_10" class="tcountry"></div></div>
+                </div>
+            </div>
+            <div id="totalHours" style="float:left;height:15px;font-family: Arial, Helvetica, sans-serif;font-size: 0.70em;color: #756BB1;margin: 0px;padding: 0px;border: 0px;">
+            <div class="hourstext"><span style="padding-left:2px">Since:&nbsp;</span><span id="totalhr">57.926</span></div>
+         </div>
+            <div id="totalamount" style="float:right;height:15px;font-family: Arial, Helvetica, sans-serif;font-size: 0.70em;color: #756BB1;margin: 0px;padding: 0px;border: 0px;">
+            <div class="amounttext"><span style="padding-left:2px">Total sent:&nbsp;</span><span id="currency">BTC</span><span id="totalsent">57.926</span></div>
+         </div>
+     </div>
+
+ </div>
     <script language="javascript" type="text/javascript" src="jquery.js"></script> 
     <script src="d3.min.js"></script>
     <script src="topojson.js"></script>
@@ -23,7 +75,8 @@
         var countries_array =[];
         var bitcoin_array = [];
         var myFiles =[];
-        
+        var start_timestamp =0;
+        var end_timestamp=0;
 
         function getISO() {
          $.getJSON("http://localhost:8000/allcountries.json", function(json) {
@@ -71,7 +124,14 @@
          function loopData(fileNum,responseText,countries_array,callback) {
                 var jsonData = JSON.parse(responseText);
                 var count =Object.keys(jsonData).length
-                // console.log(Object.keys(jsonData[0]));
+                // console.log(jsonData[0]);
+
+                if (typeof(jsonData[0].transactions) == "undefined") {
+                    start_timestamp = jsonData[0].timestamp;
+                }
+                else{
+                    start_timestamp = jsonData[0].transactions[0].timestamp;
+                }
                 for(m=0;m<count;m++){
                     var country = "";
                     var bitcoin_value =0;
@@ -84,11 +144,18 @@
 
                     	 country = jsonData[m].country;
                     	 if(typeof(jsonData[m].sources[0]) == "undefined") {
-                    	 	console.log("fileNum:",fileNum,":row:",m,":count:",count);
+                    	 	// console.log("fileNum:",fileNum,":row:",m,":count:",count);
                     	 	continue;
                     	 }
 
                     	 bitcoin_value  = jsonData[m].sources[0].value;
+                         if(jsonData[0].timestamp <= start_timestamp)
+                            start_timestamp = jsonData[0].timestamp;
+
+                        if(jsonData[0].timestamp >= end_timestamp)
+                            end_timestamp = jsonData[0].timestamp;
+
+                         // console.log(jsonData[m])
                     }else   
                     // Check if the country is undefined! it means there is no data
                     if (typeof(jsonData[m].transactions[0].country) == "undefined")
@@ -97,6 +164,13 @@
                      {
 						 country = jsonData[m].transactions[0].country;
 						 bitcoin_value =jsonData[m].srcaddress.value;
+                         if(jsonData[m].transactions[0].timestamp<=start_timestamp)
+                            start_timestamp = jsonData[m].transactions[0].timestamp;
+                        if(jsonData[m].transactions[0].timestamp >= end_timestamp)
+                            end_timestamp = jsonData[m].transactions[0].timestamp;
+
+                         // Test if it works for all the files
+                         // console.log("timestamp:"+jsonData[m].transactions[0].timestamp)
                      }
 
                      var indx = countries_array.indexOf(country)
@@ -191,11 +265,64 @@
     map.svg.call(b);
 }
 
+function findTopTen() {
+    var top_ten = [];
+    var coins_arr = bitcoin_array.slice();
+    var max=0;
+    var index =0;
+    for(m=0;m<10;m++){
+        max = coins_arr[0];
+        index = 0;
+        for(i=0;i<coins_arr.length;i++) {
+            if(max<coins_arr[i]) {
+                max = coins_arr[i];
+                index = i;
+            }
+        }
+        top_ten[m] = max;
+        coins_arr[index] = -1;
+        // parent = document.querySelector('.transactrows');
+        // child = parent.children;
+        // document.getElementById("tvol_1").nodeValue = "323BTC";
 
+        // if(countries_array[index]=="unknown")
+        //     m = m-1;
+        
+        // if(countries_array[index]!="unknown"){
+            document.getElementById("tcountry_"+(m+1)).textContent = countries_array[index];
+            document.getElementById("tvol_"+(m+1)).textContent = max.toFixed(2) + " BTC";
+        // }
+        
+        // document.getElementById("totalsent").appendChild(totalAmountDisplay);
+        // console.log("Top ten:"+top_ten[m]);
+    }
+    var a = new Date(start_timestamp*1000);
+    var b = new Date(end_timestamp*1000);
+    var monthNames = [
+      "January", "February", "March",
+      "April", "May", "June", "July",
+      "August", "September", "October",
+      "November", "December"
+    ];
+    var utc1 = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
+    var utc2 = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
+    var totalMoney = 0;
+    for(i=0;i<bitcoin_array.length;i++){
+        totalMoney = totalMoney+bitcoin_array[i];
+    }
+
+    document.getElementById("totalsent").textContent = Math.floor(totalMoney);
+    document.getElementById("totalhr").textContent = a.getDate()+' '+monthNames[a.getMonth()]+ ' '+a.getFullYear() + " Duration:"+(utc2 - utc1)/(60 * 60 * 1000)+ " hours";
+    // console.log("Hours:"+(utc2 - utc1)/(60 * 60 * 1000));
+    // console.log("start_timestamp:"+a + ":end_timestamp:"+b);
+}
+
+// 5184
 getData(5184,myFiles, function(){
 
     storeData(myFiles,countries_array,function(){
         var length =countries_array.length;
+        findTopTen();
         calculateMinMax(length,function(){
              drawMap(length);
         })
